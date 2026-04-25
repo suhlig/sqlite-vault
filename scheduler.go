@@ -23,8 +23,8 @@ func NewScheduler(f func(context.Context, time.Time)) *Scheduler {
 	}
 }
 
-// Start begins invoking the scheduled function in a background goroutine until ctx is canceled.
-// It returns immediately after scheduling the first run.
+// Start begins invoking the scheduled function at the configured frequency until ctx is canceled.
+// It blocks until ctx is canceled. Callers may run it in a goroutine if concurrent execution is desired.
 func (s *Scheduler) Start(ctx context.Context) error {
 	if s.frequency > 24*time.Hour {
 		return fmt.Errorf("frequency must not be >24 hours, but actually is %s", s.frequency)
@@ -39,35 +39,31 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		next = now
 	}
 
-	go func() {
-		delay := time.Until(next)
+	delay := time.Until(next)
 
-		if delay < 0 {
-			delay = 0
-		}
+	if delay < 0 {
+		delay = 0
+	}
 
-		timer := time.NewTimer(delay)
-		defer timer.Stop()
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
 
+	select {
+	case <-ctx.Done():
+		return nil
+	case t := <-timer.C:
+		s.f(ctx, t)
+	}
+
+	ticker := time.NewTicker(s.frequency)
+	defer ticker.Stop()
+
+	for {
 		select {
 		case <-ctx.Done():
-			return
-		case t := <-timer.C:
+			return nil
+		case t := <-ticker.C:
 			s.f(ctx, t)
 		}
-
-		ticker := time.NewTicker(s.frequency)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case t := <-ticker.C:
-				s.f(ctx, t)
-			}
-		}
-	}()
-
-	return nil
+	}
 }
