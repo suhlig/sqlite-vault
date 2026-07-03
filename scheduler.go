@@ -39,11 +39,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		next = now
 	}
 
-	delay := time.Until(next)
-
-	if delay < 0 {
-		delay = 0
-	}
+	delay := max(time.Until(next), 0)
 
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
