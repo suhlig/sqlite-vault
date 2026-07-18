@@ -1,0 +1,28 @@
+---
+repos:
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.4
+    hooks:
+      - name: go fmt
+        id: go-fmt-repo
+      - name: go vet
+        id: go-vet-repo-mod
+      - name: go build
+        id: go-build-repo-mod
+      - name: go mod tidy
+        id: go-mod-tidy-repo
+      - name: golangci-lint
+        id: golangci-lint-repo-mod
+  - repo: local
+    hooks:
+      - name: ginkgo run
+        id: ginkgo-run-not-browser
+        entry: go tool ginkgo run -r --label-filter '!browser'
+        language: system
+        pass_filenames: false
+        types: [go]
+      - name: go fix
+        id: go-fix
+        entry: go fix ./...
+        language: system
+        pass_filenames: false
