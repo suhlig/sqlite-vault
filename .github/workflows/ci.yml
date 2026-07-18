@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go fix Modernizers Are Applied
+        run: |
+          go fix ./...
+          git diff --exit-code
+
+      - name: go fmt Passes
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Unformatted files:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet Passes
+        run: go vet ./...
+
+      - name: go build Passes
+        run: go build ./...
+
+      - name: go mod tidy Is Clean
+        run: |
+          go mod tidy
+          git diff --exit-code
+
+      - name: Vulnerability Scan Passes
+        run: go tool govulncheck ./...
+
+      - name: golangci-lint Passes
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: latest
+          args: --timeout=5m
+
+      - name: Unit Tests Pass
+        run: go tool ginkgo run -r
