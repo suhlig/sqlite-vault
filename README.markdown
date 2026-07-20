@@ -25,7 +25,7 @@ SQLite Vault provides a simple, secure way to backup SQLite databases with:
 # Installation
 
 ```bash
-go get github.com/suhlig/sqlite-vault
+go get github.com/suhlig/sqlite-vault/v2
 ```
 
 # Quick Start
@@ -40,7 +40,7 @@ import (
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
-	"github.com/suhlig/sqlite-vault"
+	"github.com/suhlig/sqlite-vault/v2"
 )
 
 func main() {
