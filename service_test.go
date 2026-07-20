@@ -10,7 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	sqlitevault "github.com/suhlig/sqlite-vault"
+	sqlitevault "github.com/suhlig/sqlite-vault/v2"
 
 	_ "modernc.org/sqlite"
 )

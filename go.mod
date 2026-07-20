@@ -1,4 +1,4 @@
-module github.com/suhlig/sqlite-vault
+module github.com/suhlig/sqlite-vault/v2
 
 go 1.26
 

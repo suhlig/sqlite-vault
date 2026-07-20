@@ -5,7 +5,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	sqlitevault "github.com/suhlig/sqlite-vault"
+	sqlitevault "github.com/suhlig/sqlite-vault/v2"
 )
 
 var _ = Describe("Naming", func() {
