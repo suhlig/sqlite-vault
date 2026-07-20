@@ -62,7 +62,6 @@ if err != nil {
 		WithObjectPrefix("myapp").
 		WithObjectPrefix("backups")
 
-
   svc, err = svc.WithPassphrase("my-secret-passphrase")
 
   if err != nil {
@@ -89,6 +88,17 @@ Backups are automatically named based on when they are created:
 | Daily (4 AM, Mon-Sat) | `myapp.daily-Monday.db.age` |
 | Weekly (4 AM on Sunday) | `myapp.weekly-10.db.age` |
 | Yearly (4 AM on last Sunday of year) | `myapp.yearly-2024.db.age` |
+
+In addition, an `alias` is updated for the following `latest` backups:
+
+| Time | Name |
+|------|--------------|
+| Hourly | `myapp.hourly-latest.alias` |
+| Daily  | `myapp.daily-latest.alias` |
+| Weekly | `myapp.weekly-latest.alias` |
+| Yearly | `myapp.yearly-latest.alias` |
+
+As S3 does not support aliases, this `.alias` file is more of a pointer - its content is just the name of the most recently saved backup for the given time. It is updated whenever a backup has succeeded.
 
 # Retention
 
