@@ -12,7 +12,7 @@ There is no separate `ObjectRetriever` interface.
 
 ### The library creates the canary table
 
-The application only tells the library the name of the canary table via `WithCanary("sqlite_vault_canary")`. The library then creates the table if it does not exist and writes the single row before `VACUUM INTO`.
+The application only tells the library the name of the canary table via `WithCanary("backup_canary")`. The library then creates the table if it does not exist and writes the single row before `VACUUM INTO`.
 
 If an application wants full control over the schema, it can create the table beforehand; the library uses `CREATE TABLE IF NOT EXISTS`, so it will not overwrite an existing table.
 
@@ -42,6 +42,9 @@ Because runtime errors are non-fatal, they must be observable through logs, metr
 | `naming.go` | Add helpers for latest alias names and slot classification. |
 | `verifier.go` | New file: `Verifier` type and `Verify` method. |
 | `cmd/sqlite-vault-verify/main.go` | New CLI binary. |
+| `Dockerfile` | Multi-stage build for the verifier image. |
+| `.github/workflows/container.yml` | Build and push the image to GHCR. |
+| `renovate.json` | Keep Dockerfile base images up-to-date. |
 | `e2e_test.go` | Extend to cover canary + verification. |
 | `service_test.go` | Add canary-specific tests. |
 | `README.markdown` | Update to match the actual implementation. |
@@ -80,10 +83,14 @@ func NewVerifier(store ObjectStore, passphrase string) *Verifier
 func (v *Verifier) WithCanary(tableName string) *Verifier
 func (v *Verifier) WithLogger(l *slog.Logger) *Verifier
 func (v *Verifier) WithDecryptor(f func(inPath, outPath string) error) *Verifier
+func (v *Verifier) WithNowFunc(f func() time.Time) *Verifier
 func (v *Verifier) Verify(ctx context.Context, objectName string, maxAge time.Duration) error
+func (v *Verifier) VerifyLatest(ctx context.Context, prefix, slot string, maxAge time.Duration) error
 ```
 
 `Verify` downloads `objectName`, decrypts it, opens the SQLite file read-only, runs `PRAGMA integrity_check`, and checks the canary timestamp.
+
+`VerifyLatest` resolves the latest alias for the given slot, downloads the backup it points to, and verifies it. It also checks that the canary timestamp falls within the expected backup window for the slot.
 
 ## Canary table schema
 
@@ -169,7 +176,7 @@ Command-line arguments are visible in `ps` and `/proc/<pid>/cmdline`, but they a
 | `-bucket` | Bucket name |
 | `-region` | S3 region |
 | `-prefix` | Object prefix, e.g. `myapp` |
-| `-canary-table` | Canary table name (default: `sqlite_vault_canary`) |
+| `-canary-table` | Canary table name (default: `backup_canary`) |
 | `-max-age` | Maximum acceptable canary age, e.g. `26h` |
 | `-alias` | Which latest alias to verify (default: `daily-latest.alias`) |
 | `-timeout` | Overall timeout for the verification run |
@@ -225,7 +232,7 @@ docker run --rm \
   -v /host/secrets/access_key:/run/secrets/access_key:ro \
   -v /host/secrets/secret_key:/run/secrets/secret_key:ro \
   -v /host/secrets/passphrase:/run/secrets/passphrase:ro \
-  suhlig/sqlite-vault-verify \
+  ghcr.io/suhlig/sqlite-vault-verify:latest \
   -endpoint s3.amazonaws.com \
   -bucket my-backups \
   -region us-east-1 \
@@ -237,7 +244,7 @@ docker run --rm \
   -passphrase-file /run/secrets/passphrase
 ```
 
-> Note that bind mounts must be placed before the image name in the `docker run` argument list.
+Bind mounts must be placed before the image name in the `docker run` argument list. The image is built and published to `ghcr.io/suhlig/sqlite-vault-verify` by the `Container` workflow.
 
 The CLI is intended to be run from a cron job, systemd timer, Kubernetes CronJob, or Docker scheduler that is separate from the backup process.
 

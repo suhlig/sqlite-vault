@@ -1,4 +1,4 @@
-package backup_test
+package sqlitevault_test
 
 import (
 	"context"
@@ -33,8 +33,9 @@ type fakeStore struct {
 		local  string
 		object string
 	}
-	digest string
-	err    error
+	objects map[string][]byte
+	digest  string
+	err     error
 }
 
 func (f *fakeStore) Store(_ context.Context, localPath, objectName string) (string, error) {
@@ -50,11 +51,33 @@ func (f *fakeStore) Store(_ context.Context, localPath, objectName string) (stri
 		return "", f.err
 	}
 
+	b, err := os.ReadFile(localPath)
+	if err != nil {
+		return "", err
+	}
+
+	if f.objects == nil {
+		f.objects = make(map[string][]byte)
+	}
+	f.objects[objectName] = b
+
 	if f.digest == "" {
 		return "deadbeef", nil
 	}
 
 	return f.digest, nil
+}
+
+func (f *fakeStore) Retrieve(_ context.Context, objectName, localPath string) error {
+	f.mu.Lock()
+	b, ok := f.objects[objectName]
+	f.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("object %q not found", objectName)
+	}
+
+	return os.WriteFile(localPath, b, 0600)
 }
 
 // initTestDatabase returns the DSN of a new, already initialized test database, or an error

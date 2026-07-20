@@ -47,6 +47,20 @@
       "matchUpdateTypes": ["major"],
       "minimumReleaseAge": "7 days",
       "automerge": false
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "minimumReleaseAge": "3 days",
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "matchManagers": ["dockerfile"],
+      "matchUpdateTypes": ["major"],
+      "minimumReleaseAge": "7 days",
+      "automerge": false
     }
   ]
 }

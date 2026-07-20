@@ -1,4 +1,4 @@
-package backup
+package sqlitevault
 
 import (
 	"context"
@@ -11,9 +11,10 @@ import (
 	"github.com/minio/minio-go/v7"
 )
 
-// ObjectStore abstracts storing a backup
+// ObjectStore abstracts storing and retrieving backup objects.
 type ObjectStore interface {
 	Store(ctx context.Context, localPath, objectName string) (string, error)
+	Retrieve(ctx context.Context, objectName, localPath string) error
 }
 
 // MinioStore wraps an S3-compatible client used to store backup objects in a bucket.
@@ -69,4 +70,13 @@ func (s MinioStore) Store(ctx context.Context, localPath, objectName string) (st
 	sha1sum := hex.EncodeToString(hash.Sum(nil))
 
 	return sha1sum, nil
+}
+
+// Retrieve downloads the object named objectName from the bucket to localPath.
+func (s MinioStore) Retrieve(ctx context.Context, objectName, localPath string) error {
+	if err := s.client.FGetObject(ctx, s.bucketName, objectName, localPath, minio.GetObjectOptions{}); err != nil {
+		return fmt.Errorf("downloading object %q from bucket %q: %w", objectName, s.bucketName, err)
+	}
+
+	return nil
 }

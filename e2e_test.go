@@ -1,4 +1,4 @@
-package backup_test
+package sqlitevault_test
 
 import (
 	"bytes"
@@ -17,8 +17,8 @@ import (
 	"filippo.io/age"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	sqlitevault "github.com/suhlig/sqlite-vault"
 
-	backup "github.com/suhlig/sqlite-vault"
 	_ "modernc.org/sqlite"
 )
 
@@ -45,6 +45,18 @@ func (m *memoryStore) Store(_ context.Context, localPath, objectName string) (st
 	return hex.EncodeToString(sum[:]), nil
 }
 
+func (m *memoryStore) Retrieve(_ context.Context, objectName, localPath string) error {
+	m.mu.Lock()
+	b, ok := m.objects[objectName]
+	m.mu.Unlock()
+
+	if !ok {
+		return fmt.Errorf("object %q not found", objectName)
+	}
+
+	return os.WriteFile(localPath, b, 0600)
+}
+
 func (m *memoryStore) Get(name string) ([]byte, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -55,7 +67,7 @@ func (m *memoryStore) Get(name string) ([]byte, bool) {
 var _ = Describe("End-to-end backup, encryption, upload, download, decrypt, restore", func() {
 	var (
 		store                 *memoryStore
-		svc                   *backup.Service
+		svc                   *sqlitevault.Service
 		now                   time.Time
 		originalSentinelValue string
 		err                   error
@@ -83,9 +95,12 @@ var _ = Describe("End-to-end backup, encryption, upload, download, decrypt, rest
 
 		store = newMemoryStore()
 		// Configure the service with real age scrypt encryption and a memory object store.
-		svc = backup.NewService(dsn, store).WithObjectPrefix("e2e").WithLogger(slog.New(slog.DiscardHandler))
+		svc = sqlitevault.NewService(dsn, store).WithObjectPrefix("e2e").WithLogger(slog.New(slog.DiscardHandler))
 
 		svc, err = svc.WithPassphrase("test-passphrase")
+		Expect(err).NotTo(HaveOccurred())
+
+		svc, err = svc.WithCanary("backup_canary")
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -108,9 +123,9 @@ var _ = Describe("End-to-end backup, encryption, upload, download, decrypt, rest
 					decryptedPath  string
 				)
 
-				By("downloading the cncrypted file", func() {
+				By("downloading the encrypted file", func() {
 					var result bool
-					encryptedBytes, result = store.Get(backup.ObjectName("e2e", now, ".db.age"))
+					encryptedBytes, result = store.Get(sqlitevault.ObjectName("e2e", now, ".db.age"))
 					Expect(result).To(BeTrue())
 
 					tmpDir, err := os.MkdirTemp("", "e2e-backup-*")
@@ -158,6 +173,17 @@ var _ = Describe("End-to-end backup, encryption, upload, download, decrypt, rest
 					Expect(restoredSentinelValue).To(Equal(originalSentinelValue))
 				})
 			})
+		})
+	})
+
+	Describe("verifying the backup with the Verifier", func() {
+		It("succeeds for the hourly slot", func() {
+			verifier := sqlitevault.NewVerifier(store, "test-passphrase").
+				WithLogger(slog.New(slog.DiscardHandler)).
+				WithNowFunc(func() time.Time { return now })
+
+			err := verifier.VerifyLatest(context.Background(), "e2e", "hourly", 2*time.Hour)
+			Expect(err).NotTo(HaveOccurred())
 		})
 	})
 })

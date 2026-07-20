@@ -1,4 +1,4 @@
-package backup
+package sqlitevault
 
 import (
 	"fmt"
@@ -11,20 +11,41 @@ import (
 // 1. On Sundays, it uses an ISO week-based name like "<prefix>.WeekNN<ext>" to create a weekly backup _instead_ of the daily or hourly.
 // 1. On December 31st, it uses the four-digit year number for a name like "<prefix>.2024<ext>" to create a yearly backup _instead_ of the weekly, daily or hourly.
 func ObjectName(prefix string, now time.Time, ext string) string {
+	return fmt.Sprintf("%s.%s%s", prefix, slotObjectPart(now), ext)
+}
+
+// LatestAliasName returns the alias object name for the latest backup of the given slot category.
+// The slot category must be one of "hourly", "daily", "weekly", or "yearly".
+func LatestAliasName(prefix, slot string) string {
+	return fmt.Sprintf("%s.%s-latest.alias", prefix, slot)
+}
+
+// Slot returns the backup slot category for the given time: "hourly", "daily", "weekly", or "yearly".
+func Slot(now time.Time) string {
 	if now.Hour() == 4 {
 		if now.Weekday() == time.Sunday {
 			if lastSundayOfTheYear(now) {
-				return fmt.Sprintf("%s.yearly-%04d%s", prefix, now.Year(), ext)
+				return "yearly"
 			}
-
-			_, isoWeek := now.ISOWeek()
-			return fmt.Sprintf("%s.weekly-%02d%s", prefix, isoWeek, ext)
+			return "weekly"
 		}
-
-		return fmt.Sprintf("%s.daily-%s%s", prefix, now.Format("Monday"), ext)
+		return "daily"
 	}
+	return "hourly"
+}
 
-	return fmt.Sprintf("%s.hourly-%02d%s", prefix, now.Hour(), ext)
+func slotObjectPart(now time.Time) string {
+	switch Slot(now) {
+	case "yearly":
+		return fmt.Sprintf("yearly-%04d", now.Year())
+	case "weekly":
+		_, isoWeek := now.ISOWeek()
+		return fmt.Sprintf("weekly-%02d", isoWeek)
+	case "daily":
+		return fmt.Sprintf("daily-%s", now.Format("Monday"))
+	default:
+		return fmt.Sprintf("hourly-%02d", now.Hour())
+	}
 }
 
 // lastSundayOfTheYear returns true if now is the last Sunday on or before December 31 of the given year

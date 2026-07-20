@@ -1,4 +1,4 @@
-package backup
+package sqlitevault
 
 import (
 	"context"

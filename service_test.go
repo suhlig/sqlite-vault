@@ -1,4 +1,4 @@
-package backup_test
+package sqlitevault_test
 
 import (
 	"errors"
@@ -10,7 +10,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	backup "github.com/suhlig/sqlite-vault"
+	sqlitevault "github.com/suhlig/sqlite-vault"
 
 	_ "modernc.org/sqlite"
 )
@@ -18,7 +18,7 @@ import (
 var _ = Describe("Service", func() {
 	var (
 		now   time.Time
-		svc   *backup.Service
+		svc   *sqlitevault.Service
 		store *fakeStore
 	)
 
@@ -29,7 +29,7 @@ var _ = Describe("Service", func() {
 		store = &fakeStore{}
 
 		nullLogger := slog.New(slog.DiscardHandler)
-		svc = backup.NewService(dsn, store).
+		svc = sqlitevault.NewService(dsn, store).
 			WithObjectPrefix("test").
 			WithLogger(nullLogger)
 	})
@@ -44,18 +44,25 @@ var _ = Describe("Service", func() {
 			svc = svc.WithEncryptor(fakeEncryptor)
 		})
 
-		It("uploads one hourly object", func() {
+		It("uploads the backup object and its alias", func() {
 			store.mu.Lock()
 			defer store.mu.Unlock()
 
-			Expect(store.calls).To(HaveLen(1))
+			Expect(store.calls).To(HaveLen(2))
 		})
 
-		It("uses a zero-padded hourly object name", func() {
+		It("uses a zero-padded hourly object name for the backup", func() {
 			store.mu.Lock()
 			defer store.mu.Unlock()
 
 			Expect(filepath.Base(store.calls[0].object)).To(Equal("test.hourly-09.db.age"))
+		})
+
+		It("uses the hourly-latest alias name", func() {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+
+			Expect(filepath.Base(store.calls[1].object)).To(Equal("test.hourly-latest.alias"))
 		})
 	})
 
@@ -72,11 +79,11 @@ var _ = Describe("Service", func() {
 				_, isoWeek = now.ISOWeek()
 			})
 
-			It("stores one weekly object", func() {
+			It("stores the weekly backup object and its alias", func() {
 				store.mu.Lock()
 				defer store.mu.Unlock()
 
-				Expect(store.calls).To(HaveLen(1))
+				Expect(store.calls).To(HaveLen(2))
 			})
 
 			It("uses weekly-WeekNN in the object name", func() {
@@ -85,6 +92,13 @@ var _ = Describe("Service", func() {
 
 				Expect(filepath.Base(store.calls[0].object)).To(Equal(fmt.Sprintf("test.weekly-%02d.db.age", isoWeek)))
 			})
+
+			It("uses the weekly-latest alias name", func() {
+				store.mu.Lock()
+				defer store.mu.Unlock()
+
+				Expect(filepath.Base(store.calls[1].object)).To(Equal("test.weekly-latest.alias"))
+			})
 		})
 
 		Context("on a Monday at 04:XX", func() {
@@ -92,11 +106,11 @@ var _ = Describe("Service", func() {
 				now = time.Date(2025, 1, 6, 4, 37, 0, 0, time.UTC)
 			})
 
-			It("stores one daily object", func() {
+			It("stores the daily backup object and its alias", func() {
 				store.mu.Lock()
 				defer store.mu.Unlock()
 
-				Expect(store.calls).To(HaveLen(1))
+				Expect(store.calls).To(HaveLen(2))
 			})
 
 			It("uses the weekday name in the daily object name", func() {
@@ -104,6 +118,13 @@ var _ = Describe("Service", func() {
 				defer store.mu.Unlock()
 
 				Expect(filepath.Base(store.calls[0].object)).To(Equal("test.daily-Monday.db.age"))
+			})
+
+			It("uses the daily-latest alias name", func() {
+				store.mu.Lock()
+				defer store.mu.Unlock()
+
+				Expect(filepath.Base(store.calls[1].object)).To(Equal("test.daily-latest.alias"))
 			})
 		})
 	})
@@ -122,6 +143,36 @@ var _ = Describe("Service", func() {
 		It("removes plaintext file when encryption fails", func() {
 			_, statErr := os.Stat(capturedInPath)
 			Expect(os.IsNotExist(statErr)).To(BeTrue())
+		})
+	})
+
+	Describe("WithCanary", func() {
+		BeforeEach(func() {
+			svc = svc.WithEncryptor(fakeEncryptor)
+		})
+
+		It("returns an error for an invalid table name", func() {
+			for _, name := range []string{"not a valid table", "1starts-with-digit", "sqlite_reserved", "has-dashes", ""} {
+				_, err := svc.WithCanary(name)
+				Expect(err).To(HaveOccurred(), "expected error for table name %q", name)
+			}
+		})
+
+		Context("with a valid table name", func() {
+			BeforeEach(func() {
+				var err error
+				svc, err = svc.WithCanary("backup_canary")
+				Expect(err).NotTo(HaveOccurred())
+
+				now = time.Date(2025, 1, 6, 9, 0, 0, 0, time.UTC)
+			})
+
+			It("stores the backup object and its alias", func() {
+				store.mu.Lock()
+				defer store.mu.Unlock()
+
+				Expect(store.calls).To(HaveLen(2))
+			})
 		})
 	})
 })

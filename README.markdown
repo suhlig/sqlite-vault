@@ -19,6 +19,8 @@ SQLite Vault provides a simple, secure way to backup SQLite databases with:
 - Automatic cleanup of temporary files
 - Context-aware operations with timeouts
 - Structured logging via `log/slog`
+- Optional backup canary for end-to-end verification
+- CLI verifier to check backups independently
 
 # Installation
 
@@ -47,30 +49,30 @@ func main() {
 		Region: "us-east-1",
 		Secure: true,
 	})
-
-if err != nil {
-		log.Fatal(err)
-	}
-
-	store, err := backup.NewMinioStore(minioClient, "my-backups")
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	svc := backup.NewService("file:mydb.sqlite", store).
-		WithObjectPrefix("myapp").
-		WithObjectPrefix("backups")
-
-  svc, err = svc.WithPassphrase("my-secret-passphrase")
-
-  if err != nil {
+	store, err := sqlitevault.NewMinioStore(minioClient, "my-backups")
+	if err != nil {
 		log.Fatal(err)
 	}
 
-	scheduler := backup.NewScheduler(svc.BackupFunc)
+	svc := sqlitevault.NewService("file:mydb.sqlite", store).
+		WithObjectPrefix("myapp")
 
-  if err := scheduler.Start(context.Background()); err != nil {
+	svc, err = svc.WithPassphrase("my-secret-passphrase")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	svc, err = svc.WithCanary("backup_canary")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	scheduler := sqlitevault.NewScheduler(svc.BackupFunc)
+	if err := scheduler.Start(context.Background()); err != nil {
 		log.Fatal(err)
 	}
 
@@ -99,6 +101,28 @@ In addition, an `alias` is updated for the following `latest` backups:
 | Yearly | `myapp.yearly-latest.alias` |
 
 As S3 does not support aliases, this `.alias` file is more of a pointer - its content is just the name of the most recently saved backup for the given time. It is updated whenever a backup has succeeded.
+
+# Verification
+
+`sqlite-vault-verify` is a separate CLI that downloads the latest alias, decrypts the backup it points to, runs `PRAGMA integrity_check`, and checks the canary timestamp. Run it from a different host or container than the backup process.
+
+```bash
+docker run --rm \
+  -v /host/secrets/access_key:/run/secrets/access_key:ro \
+  -v /host/secrets/secret_key:/run/secrets/secret_key:ro \
+  -v /host/secrets/passphrase:/run/secrets/passphrase:ro \
+  ghcr.io/suhlig/sqlite-vault-verify:latest \
+  -endpoint s3.amazonaws.com \
+  -bucket my-backups \
+  -region us-east-1 \
+  -prefix myapp \
+  -max-age 26h \
+  -access-key-file /run/secrets/access_key \
+  -secret-key-file /run/secrets/secret_key \
+  -passphrase-file /run/secrets/passphrase
+```
+
+The verifier exits non-zero on failure, so it can be used as a CronJob or health check. The image is published to `ghcr.io/suhlig/sqlite-vault-verify` by the `Container` workflow.
 
 # Retention
 

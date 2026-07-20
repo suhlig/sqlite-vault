@@ -1,4 +1,4 @@
-package backup
+package sqlitevault
 
 import (
 	"errors"
@@ -29,6 +29,55 @@ func (s *Service) WithPassphrase(pw string) (*Service, error) {
 	}
 
 	return s, nil
+}
+
+// DecryptFile decrypts the age-encrypted file at inPath using the given passphrase and writes the plaintext to outPath.
+func DecryptFile(inPath, outPath, passphrase string) error {
+	identity, err := age.NewScryptIdentity(passphrase)
+	if err != nil {
+		return fmt.Errorf("creating scrypt identity: %w", err)
+	}
+
+	in, err := os.Open(inPath)
+	if err != nil {
+		return fmt.Errorf("opening encrypted file %q: %w", inPath, err)
+	}
+
+	defer func() {
+		_ = in.Close()
+	}()
+
+	r, err := age.Decrypt(in, identity)
+	if err != nil {
+		return fmt.Errorf("initializing age decryptor: %w", err)
+	}
+
+	tmp := outPath + ".tmp"
+
+	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	if err != nil {
+		return fmt.Errorf("creating temp output file %q: %w", tmp, err)
+	}
+
+	_, copyErr := io.Copy(out, r)
+	closeErr := out.Close()
+
+	if copyErr != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("decrypting file: %w", copyErr)
+	}
+
+	if closeErr != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("closing decrypted file: %w", closeErr)
+	}
+
+	if err := os.Rename(tmp, outPath); err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("renaming temp output file to %q: %w", outPath, err)
+	}
+
+	return nil
 }
 
 func encryptFile(inPath, outPath string, recips []age.Recipient) error {
