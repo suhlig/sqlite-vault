@@ -124,10 +124,41 @@ var _ = Describe("Verifier", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
+		It("fails when the alias is empty", func() {
+			store.Put("e2e.hourly-latest.alias", []byte(""))
+			err := verifier.VerifyLatest(context.Background(), "e2e", "hourly", 2*time.Hour)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("alias"))
+		})
+
 		It("fails when the decrypted file is not a valid SQLite database", func() {
 			store.Put("e2e.hourly-09.db.age", []byte("not a database"))
 			err := verifier.VerifyLatest(context.Background(), "e2e", "hourly", 2*time.Hour)
 			Expect(err).To(HaveOccurred())
+		})
+
+		It("fails when the SQLite file is corrupt", func() {
+			// Corrupt the schema so SQLite opens the file but PRAGMA integrity_check
+			// reports damage.
+			corruptDB, err := sql.Open("sqlite", dbPath)
+			Expect(err).NotTo(HaveOccurred())
+			defer func() {
+				_ = corruptDB.Close()
+			}()
+
+			_, err = corruptDB.Exec("PRAGMA writable_schema=ON")
+			Expect(err).NotTo(HaveOccurred())
+
+			_, err = corruptDB.Exec("UPDATE sqlite_master SET sql='CREATE TABLE corrupt(id);' WHERE type='table' AND name='backup_canary'")
+			Expect(err).NotTo(HaveOccurred())
+
+			b, err := os.ReadFile(dbPath)
+			Expect(err).NotTo(HaveOccurred())
+			store.Put("e2e.hourly-09.db.age", b)
+
+			err = verifier.VerifyLatest(context.Background(), "e2e", "hourly", 2*time.Hour)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(MatchRegexp(`(?i)integrity|malformed`))
 		})
 
 		It("fails when the canary is missing", func() {

@@ -1,6 +1,7 @@
 package sqlitevault_test
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -63,6 +64,14 @@ var _ = Describe("Service", func() {
 			defer store.mu.Unlock()
 
 			Expect(filepath.Base(store.calls[1].object)).To(Equal("test.hourly-latest.alias"))
+		})
+
+		It("writes the alias content as the backup object name", func() {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+
+			aliasContent := string(store.objects["test.hourly-latest.alias"])
+			Expect(aliasContent).To(Equal("test.hourly-09.db.age"))
 		})
 	})
 
@@ -172,6 +181,32 @@ var _ = Describe("Service", func() {
 				defer store.mu.Unlock()
 
 				Expect(store.calls).To(HaveLen(2))
+			})
+
+			It("stores the canary row in the backup", func() {
+				store.mu.Lock()
+				encBytes := store.objects["test.hourly-09.db.age"]
+				store.mu.Unlock()
+
+				// fakeEncryptor prepends "ENC:" to the plaintext.
+				Expect(encBytes).To(HavePrefix("ENC:"))
+
+				tmpDir, err := os.MkdirTemp("", "svc-canary-*")
+				Expect(err).NotTo(HaveOccurred())
+				DeferCleanup(os.RemoveAll, tmpDir)
+
+				dbPath := filepath.Join(tmpDir, "backup.db")
+				err = os.WriteFile(dbPath, encBytes[4:], 0600)
+				Expect(err).NotTo(HaveOccurred())
+
+				db, err := sql.Open("sqlite", dbPath)
+				Expect(err).NotTo(HaveOccurred())
+				DeferCleanup(db.Close)
+
+				var backedUpAt string
+				err = db.QueryRow("SELECT backed_up_at FROM backup_canary WHERE id = 1").Scan(&backedUpAt)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(backedUpAt).To(Equal("2025-01-06T09:00:00Z"))
 			})
 		})
 	})
