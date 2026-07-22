@@ -172,7 +172,7 @@ func (v *Verifier) verifyObject(ctx context.Context, objectName, slot string, ma
 // checkCanarySlot verifies that t is within the expected window for the most
 // recent backup of the given slot. It tolerates small scheduling delays.
 func (v *Verifier) checkCanarySlot(t time.Time, slot string) error {
-	expected, err := expectedBackupTime(slot, v.nowFunc())
+	expected, err := expectedBackupTime(slot, v.nowFunc().UTC())
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,8 @@ func (v *Verifier) checkCanarySlot(t time.Time, slot string) error {
 //   - weekly: 04:00 on Sundays that are not the last Sunday of the year
 //   - yearly: 04:00 on the last Sunday of the year
 func expectedBackupTime(slot string, now time.Time) (time.Time, error) {
-	loc := now.Location()
+	now = now.UTC()
+	loc := time.UTC
 
 	switch slot {
 	case "hourly":

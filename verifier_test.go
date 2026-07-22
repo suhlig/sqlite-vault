@@ -173,6 +173,20 @@ var _ = Describe("Verifier", func() {
 			Expect(err.Error()).To(ContainSubstring("outside expected backup window"))
 		})
 
+		It("uses UTC for the expected slot window even when the verifier runs in a non-UTC timezone", func() {
+			// The canary is at 09:00 UTC, which is an hourly backup. Pretend the verifier
+			// is running at 10:00 UTC in a UTC+2 timezone. The expected hourly slot is
+			// 10:00 UTC, so the 09:00 canary should fail.
+			loc := time.FixedZone("UTC+2", 2*60*60)
+			verifier = verifier.WithNowFunc(func() time.Time {
+				return now.Add(time.Hour).In(loc)
+			})
+
+			err := verifier.VerifyLatest(context.Background(), "e2e", "hourly", 2*time.Hour)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("outside expected backup window"))
+		})
+
 		It("fails when the decryptor fails", func() {
 			verifier = verifier.WithDecryptor(func(in, out string) error {
 				return errors.New("decryption failed on purpose")

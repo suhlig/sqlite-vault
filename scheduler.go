@@ -23,6 +23,12 @@ func NewScheduler(f func(context.Context, time.Time)) *Scheduler {
 	}
 }
 
+// WithNowFunc allows tests to control the time source used by the scheduler.
+func (s *Scheduler) WithNowFunc(f func() time.Time) *Scheduler {
+	s.nowFunc = f
+	return s
+}
+
 // Start begins invoking the scheduled function at the configured frequency until ctx is canceled.
 // It blocks until ctx is canceled. Callers may run it in a goroutine if concurrent execution is desired.
 func (s *Scheduler) Start(ctx context.Context) error {
@@ -48,7 +54,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	case <-ctx.Done():
 		return nil
 	case t := <-timer.C:
-		s.f(ctx, t)
+		s.f(ctx, t.UTC())
 	}
 
 	ticker := time.NewTicker(s.frequency)
@@ -59,7 +65,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case t := <-ticker.C:
-			s.f(ctx, t)
+			s.f(ctx, t.UTC())
 		}
 	}
 }
