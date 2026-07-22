@@ -178,6 +178,17 @@ Here are example commands for Backblaze B2:
     sqlite3 myapp.db
     ```
 
+# Releasing
+
+Tag the release and push it:
+
+  ```bash
+  git tag v2.0.x
+  git push origin main v2.0.x
+  ```
+
+The `Container` workflow publishes `ghcr.io/suhlig/sqlite-vault-verify:2.0.x` and updates `latest`. `proxy.golang.org` and `pkg.go.dev` will pick up the new Go module version automatically within a few minutes.
+
 ## Dependencies
 
 - [age](https://github.com/FiloSottile/age) - Modern encryption tool
