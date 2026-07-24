@@ -18,29 +18,48 @@ import (
 
 func main() {
 	var (
-		endpoint       = flag.String("endpoint", "", "S3 endpoint (e.g. s3.amazonaws.com)")
-		bucket         = flag.String("bucket", "", "S3 bucket name")
-		region         = flag.String("region", "", "S3 region")
-		prefix         = flag.String("prefix", "", "Object prefix, e.g. myapp")
-		accessKeyFile  = flag.String("access-key-file", "", "Path to file containing S3 access key")
-		secretKeyFile  = flag.String("secret-key-file", "", "Path to file containing S3 secret key")
-		passphraseFile = flag.String("passphrase-file", "", "Path to file containing age passphrase")
-		canaryTable    = flag.String("canary-table", "backup_canary", "Canary table name")
-		maxAge         = flag.Duration("max-age", 26*time.Hour, "Maximum acceptable canary age")
-		alias          = flag.String("alias", "daily-latest.alias", "Latest alias object name")
-		timeout        = flag.Duration("timeout", 5*time.Minute, "Overall verification timeout")
-		insecure       = flag.Bool("insecure", false, "Skip TLS verification")
+		endpoint    = flag.String("endpoint", "", "S3 endpoint (e.g. s3.amazonaws.com)")
+		bucket      = flag.String("bucket", "", "S3 bucket name")
+		region      = flag.String("region", "", "S3 region")
+		prefix      = flag.String("prefix", "", "Object prefix, e.g. myapp")
+		canaryTable = flag.String("canary-table", "backup_canary", "Canary table name")
+		maxAge      = flag.Duration("max-age", 26*time.Hour, "Maximum acceptable canary age")
+		alias       = flag.String("alias", "daily-latest.alias", "Latest alias object name")
+		timeout     = flag.Duration("timeout", 5*time.Minute, "Overall verification timeout")
+		insecure    = flag.Bool("insecure", false, "Skip TLS verification")
 	)
 
 	flag.Parse()
 
-	if err := run(*endpoint, *bucket, *region, *prefix, *accessKeyFile, *secretKeyFile, *passphraseFile, *canaryTable, *maxAge, *alias, *timeout, *insecure); err != nil {
+	accessKey := os.Getenv(accessKeyEnv)
+	secretKey := os.Getenv(secretKeyEnv)
+	passphrase := os.Getenv(passphraseEnv)
+	if accessKey == "" {
+		fmt.Fprintf(os.Stderr, "%s is required\n", accessKeyEnv)
+		os.Exit(1)
+	}
+	if secretKey == "" {
+		fmt.Fprintf(os.Stderr, "%s is required\n", secretKeyEnv)
+		os.Exit(1)
+	}
+	if passphrase == "" {
+		fmt.Fprintf(os.Stderr, "%s is required\n", passphraseEnv)
+		os.Exit(1)
+	}
+
+	if err := run(*endpoint, *bucket, *region, *prefix, accessKey, secretKey, passphrase, *canaryTable, *maxAge, *alias, *timeout, *insecure); err != nil {
 		fmt.Fprintf(os.Stderr, "verification failed: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(endpoint, bucket, region, prefix, accessKeyFile, secretKeyFile, passphraseFile, canaryTable string, maxAge time.Duration, alias string, timeout time.Duration, insecure bool) error {
+const (
+	accessKeyEnv  = "SQLITE_VAULT_VERIFY_ACCESS_KEY"
+	secretKeyEnv  = "SQLITE_VAULT_VERIFY_SECRET_KEY"
+	passphraseEnv = "SQLITE_VAULT_VERIFY_PASSPHRASE"
+)
+
+func run(endpoint, bucket, region, prefix, accessKey, secretKey, passphrase, canaryTable string, maxAge time.Duration, alias string, timeout time.Duration, insecure bool) error {
 	if endpoint == "" {
 		return fmt.Errorf("-endpoint is required")
 	}
@@ -49,30 +68,6 @@ func run(endpoint, bucket, region, prefix, accessKeyFile, secretKeyFile, passphr
 	}
 	if prefix == "" {
 		return fmt.Errorf("-prefix is required")
-	}
-	if accessKeyFile == "" {
-		return fmt.Errorf("-access-key-file is required")
-	}
-	if secretKeyFile == "" {
-		return fmt.Errorf("-secret-key-file is required")
-	}
-	if passphraseFile == "" {
-		return fmt.Errorf("-passphrase-file is required")
-	}
-
-	accessKey, err := readSecretFile(accessKeyFile)
-	if err != nil {
-		return fmt.Errorf("reading access key: %w", err)
-	}
-
-	secretKey, err := readSecretFile(secretKeyFile)
-	if err != nil {
-		return fmt.Errorf("reading secret key: %w", err)
-	}
-
-	passphrase, err := readSecretFile(passphraseFile)
-	if err != nil {
-		return fmt.Errorf("reading passphrase: %w", err)
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -109,14 +104,6 @@ func run(endpoint, bucket, region, prefix, accessKeyFile, secretKeyFile, passphr
 	defer cancel()
 
 	return verifier.VerifyLatest(ctx, prefix, slot, maxAge)
-}
-
-func readSecretFile(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(b)), nil
 }
 
 func slotFromAlias(alias string) (string, error) {
