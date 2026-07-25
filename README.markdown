@@ -104,25 +104,21 @@ As S3 does not support aliases, this `.alias` file is more of a pointer - its co
 
 # Verification
 
-`sqlite-vault-verify` is a separate CLI that downloads the latest alias, decrypts the backup it points to, runs `PRAGMA integrity_check`, and checks the canary timestamp. Run it from a different host or container than the backup process.
+`sqlite-vault-verify` is a separate CLI that downloads the latest alias, decrypts the backup it points to, runs `PRAGMA integrity_check`, and checks the canary timestamp. Run it from a different host than the backup process.
 
 ```bash
-docker run --rm \
-  -v /host/secrets/access_key:/run/secrets/access_key:ro \
-  -v /host/secrets/secret_key:/run/secrets/secret_key:ro \
-  -v /host/secrets/passphrase:/run/secrets/passphrase:ro \
-  ghcr.io/suhlig/sqlite-vault-verify:latest \
-  -endpoint s3.amazonaws.com \
-  -bucket my-backups \
-  -region us-east-1 \
-  -prefix myapp \
-  -max-age 26h \
-  -access-key-file /run/secrets/access_key \
-  -secret-key-file /run/secrets/secret_key \
-  -passphrase-file /run/secrets/passphrase
+SQLITE_VAULT_VERIFY_ACCESS_KEY="..." \
+SQLITE_VAULT_VERIFY_SECRET_KEY="..." \
+SQLITE_VAULT_VERIFY_PASSPHRASE="..." \
+  sqlite-vault-verify \
+    -endpoint s3.amazonaws.com \
+    -bucket my-backups \
+    -region us-east-1 \
+    -prefix myapp \
+    -max-age 26h
 ```
 
-The verifier exits non-zero on failure, so it can be used as a CronJob or health check. The image is published to `ghcr.io/suhlig/sqlite-vault-verify` by the `Container` workflow.
+The verifier exits non-zero on failure, so it can be used as a periodic job or health check.
 
 # Retention
 
@@ -187,7 +183,7 @@ Tag the release and push it:
   git push origin main v2.0.x
   ```
 
-The `Container` workflow publishes `ghcr.io/suhlig/sqlite-vault-verify:2.0.x` and updates `latest`. `proxy.golang.org` and `pkg.go.dev` will pick up the new Go module version automatically within a few minutes.
+`proxy.golang.org` and `pkg.go.dev` will pick up the new Go module version automatically within a few minutes.
 
 ## Dependencies
 
