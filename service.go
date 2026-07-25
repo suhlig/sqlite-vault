@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -74,6 +75,9 @@ func safeIdentifier(name string) bool {
 	return !strings.HasPrefix(strings.ToLower(name), "sqlite_")
 }
 
+// errSkipBackup signals that the current backup slot is already covered.
+var errSkipBackup = errors.New("backup already stored for this slot")
+
 func (s *Service) backupOnce(ctx context.Context, now time.Time) (string, string, error) {
 	if s.encryptor == nil {
 		return "", "", fmt.Errorf("encryption is not configured; refusing to upload plaintext backup")
@@ -114,6 +118,18 @@ func (s *Service) backupOnce(ctx context.Context, now time.Time) (string, string
 	// Ensure WAL mode; harmless if already enabled.
 	if _, err = conn.ExecContext(runCtx, "PRAGMA journal_mode=WAL"); err != nil {
 		return "", "", fmt.Errorf("enabling WAL: %w", err)
+	}
+
+	if s.canaryTable != "" {
+		alreadyBackedUp, err := s.alreadyBackedUpThisSlot(runCtx, conn, now)
+
+		if err != nil {
+			return "", "", fmt.Errorf("checking canary: %w", err)
+		}
+
+		if alreadyBackedUp {
+			return "", "", errSkipBackup
+		}
 	}
 
 	tempFile, err := os.CreateTemp("", fmt.Sprintf("%s-*.db", s.objectPrefix))
@@ -171,6 +187,40 @@ func (s *Service) backupOnce(ctx context.Context, now time.Time) (string, string
 	}
 
 	return objectName, sha1sum, nil
+}
+
+func (s *Service) alreadyBackedUpThisSlot(ctx context.Context, conn *sql.Conn, now time.Time) (bool, error) {
+	var tableName string
+
+	err := conn.QueryRowContext(ctx, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", s.canaryTable).Scan(&tableName)
+
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("checking canary table existence: %w", err)
+	}
+
+	var backedUpAt string
+
+	err = conn.QueryRowContext(ctx, fmt.Sprintf("SELECT backed_up_at FROM %s WHERE id = 1", s.canaryTable)).Scan(&backedUpAt)
+
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("reading canary row: %w", err)
+	}
+
+	previous, err := time.Parse(time.RFC3339, backedUpAt)
+
+	if err != nil {
+		return false, fmt.Errorf("parsing canary backed_up_at: %w", err)
+	}
+
+	return ObjectName(s.objectPrefix, previous, "") == ObjectName(s.objectPrefix, now, ""), nil
 }
 
 func (s *Service) writeCanary(ctx context.Context, conn *sql.Conn, now time.Time) error {
@@ -240,6 +290,11 @@ func (s *Service) BackupFunc(ctx context.Context, now time.Time) {
 	s.logger.InfoContext(ctx, "Performing backup")
 
 	objectName, digest, err := s.backupOnce(ctx, now)
+
+	if errors.Is(err, errSkipBackup) {
+		s.logger.InfoContext(ctx, "Backup skipped because this slot was already backed up", "slot", Slot(now))
+		return
+	}
 
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Backup failed", "error", err)

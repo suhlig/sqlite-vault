@@ -208,6 +208,19 @@ var _ = Describe("Service", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(backedUpAt).To(Equal("2025-01-06T09:00:00Z"))
 			})
+
+			Context("when the same slot was already backed up", func() {
+				It("skips the second backup to avoid overwriting the existing one", func(ctx SpecContext) {
+					secondNow := time.Date(2025, 1, 6, 9, 45, 0, 0, time.UTC)
+
+					svc.BackupFunc(ctx, secondNow)
+
+					store.mu.Lock()
+					defer store.mu.Unlock()
+
+					Expect(store.calls).To(HaveLen(2))
+				})
+			})
 		})
 	})
 })

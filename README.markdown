@@ -20,6 +20,7 @@ SQLite Vault provides a simple, secure way to backup SQLite databases with:
 - Context-aware operations with timeouts
 - Structured logging via `log/slog`
 - Optional backup canary for end-to-end verification
+- Skips a backup slot when the canary shows it was already covered, preventing a restart from overwriting the existing backup
 - CLI verifier to check backups independently
 
 # Installation
@@ -101,6 +102,8 @@ In addition, an `alias` is updated for the following `latest` backups:
 | Yearly | `myapp.yearly-latest.alias` |
 
 As S3 does not support aliases, this `.alias` file is more of a pointer - its content is just the name of the most recently saved backup for the given time. It is updated whenever a backup has succeeded.
+
+When a backup canary is configured, the service checks the canary table before running a backup. If the `backed_up_at` timestamp is in the same backup slot as the current time, the backup is skipped and the existing object is left untouched. This prevents a server restart from immediately overwriting the backup that was created earlier in the same hour. The next backup will run when the current time moves into a new slot.
 
 # Verification
 
