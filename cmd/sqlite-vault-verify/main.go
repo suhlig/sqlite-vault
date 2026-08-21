@@ -55,8 +55,8 @@ func main() {
 
 const (
 	accessKeyEnv  = "SQLITE_VAULT_VERIFY_ACCESS_KEY"
-	secretKeyEnv  = "SQLITE_VAULT_VERIFY_SECRET_KEY"
-	passphraseEnv = "SQLITE_VAULT_VERIFY_PASSPHRASE"
+	secretKeyEnv  = "SQLITE_VAULT_VERIFY_SECRET_KEY" // #nosec G101 -- env var name, not a credential
+	passphraseEnv = "SQLITE_VAULT_VERIFY_PASSPHRASE" // #nosec G101 -- env var name, not a credential
 )
 
 func run(endpoint, bucket, region, prefix, accessKey, secretKey, passphrase, canaryTable string, maxAge time.Duration, alias string, timeout time.Duration, insecure bool) error {
@@ -72,6 +72,7 @@ func run(endpoint, bucket, region, prefix, accessKey, secretKey, passphrase, can
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if insecure {
+		// #nosec G402 -- explicit opt-in via the -insecure flag for self-signed S3 endpoints
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 

@@ -16,13 +16,33 @@ repos:
   - repo: local
     hooks:
       - name: ginkgo run
-        id: ginkgo-run-not-browser
-        entry: go tool ginkgo run -r --label-filter '!browser'
+        id: ginkgo-run
+        entry: go tool ginkgo run -r
         language: system
         pass_filenames: false
         types: [go]
       - name: go fix
         id: go-fix
         entry: go fix ./...
+        language: system
+        pass_filenames: false
+      - name: govulncheck
+        id: govulncheck
+        entry: go tool govulncheck ./...
+        language: system
+        pass_filenames: false
+      - name: gosec
+        id: gosec
+        entry: go tool gosec -quiet ./...
+        language: system
+        pass_filenames: false
+      - name: staticcheck
+        id: staticcheck
+        entry: go tool staticcheck ./...
+        language: system
+        pass_filenames: false
+      - name: deadcode
+        id: deadcode
+        entry: go tool deadcode -test ./...
         language: system
         pass_filenames: false

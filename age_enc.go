@@ -38,6 +38,7 @@ func DecryptFile(inPath, outPath, passphrase string) error {
 		return fmt.Errorf("creating scrypt identity: %w", err)
 	}
 
+	// #nosec G304 -- inPath is a CLI-supplied backup path, not untrusted web input
 	in, err := os.Open(inPath)
 	if err != nil {
 		return fmt.Errorf("opening encrypted file %q: %w", inPath, err)
@@ -54,6 +55,7 @@ func DecryptFile(inPath, outPath, passphrase string) error {
 
 	tmp := outPath + ".tmp"
 
+	// #nosec G304 -- outPath comes from the CLI; tmp is derived from it
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("creating temp output file %q: %w", tmp, err)
@@ -81,6 +83,7 @@ func DecryptFile(inPath, outPath, passphrase string) error {
 }
 
 func encryptFile(inPath, outPath string, recips []age.Recipient) error {
+	// #nosec G304 -- inPath is a CLI-supplied backup path, not untrusted web input
 	in, err := os.Open(inPath)
 
 	if err != nil {
@@ -93,6 +96,7 @@ func encryptFile(inPath, outPath string, recips []age.Recipient) error {
 
 	tmp := outPath + ".tmp"
 
+	// #nosec G304 -- outPath comes from the CLI; tmp is derived from it
 	out, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 
 	if err != nil {

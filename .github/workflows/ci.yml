@@ -42,6 +42,15 @@ jobs:
       - name: Vulnerability Scan Passes
         run: go tool govulncheck ./...
 
+      - name: gosec Passes
+        run: go tool gosec -quiet ./...
+
+      - name: staticcheck Passes
+        run: go tool staticcheck ./...
+
+      - name: deadcode Passes
+        run: go tool deadcode -test ./...
+
       - name: golangci-lint Passes
         uses: golangci/golangci-lint-action@v9
         with:

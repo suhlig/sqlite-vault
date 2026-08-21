@@ -80,6 +80,7 @@ func (v *Verifier) VerifyLatest(ctx context.Context, prefix, slot string, maxAge
 		return fmt.Errorf("retrieving alias %q: %w", aliasName, err)
 	}
 
+	// #nosec G304 -- aliasPath is a temp file created by os.CreateTemp above, not user input
 	objectNameBytes, err := os.ReadFile(aliasPath)
 	if err != nil {
 		return fmt.Errorf("reading alias file: %w", err)

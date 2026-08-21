@@ -2,7 +2,7 @@ package sqlitevault
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- SHA-1 is used only as a non-security file digest for logging
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -33,6 +33,7 @@ func NewMinioStore(client *minio.Client, bucketName string) (*MinioStore, error)
 
 // Store uploads the file at localPath to the bucket under objectName and returns the SHA-1 digest.
 func (s MinioStore) Store(ctx context.Context, localPath, objectName string) (string, error) {
+	// #nosec G304 -- localPath is a CLI-supplied path, not untrusted web input
 	f, err := os.Open(localPath)
 
 	if err != nil {
@@ -49,6 +50,7 @@ func (s MinioStore) Store(ctx context.Context, localPath, objectName string) (st
 		return "", fmt.Errorf("statting local file %q: %w", localPath, err)
 	}
 
+	// #nosec G401 -- SHA-1 is used only as a non-security integrity digest for logging
 	hash := sha1.New()
 	tee := io.TeeReader(f, hash)
 
