@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	filippo.io/age v1.3.1
 	github.com/minio/minio-go/v7 v7.2.1
-	github.com/onsi/ginkgo/v2 v2.32.0
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	modernc.org/sqlite v1.56.0
 )
