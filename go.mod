@@ -1,6 +1,6 @@
 module github.com/suhlig/sqlite-vault/v2
 
-go 1.26
+go 1.27.0
 
 require (
 	filippo.io/age v1.3.1
