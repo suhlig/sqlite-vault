@@ -6,7 +6,7 @@ require (
 	filippo.io/age v1.3.2
 	github.com/minio/minio-go/v7 v7.3.0
 	github.com/onsi/ginkgo/v2 v2.32.2
-	github.com/onsi/gomega v1.43.0
+	github.com/onsi/gomega v1.43.1
 	modernc.org/sqlite v1.59.0
 )
 
