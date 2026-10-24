@@ -47,6 +47,11 @@
       "matchUpdateTypes": ["major"],
       "minimumReleaseAge": "7 days",
       "automerge": false
+    },
+    {
+      "description": "Assign updates that require review to suhlig.",
+      "matchUpdateTypes": ["major"],
+      "assignees": ["suhlig"]
     }
   ]
 }
